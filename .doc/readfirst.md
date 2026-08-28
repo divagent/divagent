@@ -1,1 +1,1 @@
-Scope: NYSE, NASDAQ, TSX
+Scope: NYSE, NASDAQ
