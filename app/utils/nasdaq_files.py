@@ -2,7 +2,7 @@ import httpx
 
 
 async def fetch_pipe_file(url: str) -> list[dict[str, str]]:
-    """Fetch a Nasdaq Trader symbol-directory file and return its rows as dicts.
+    """Fetch a Nasdaq Trader symbol-directory file and return rows as dicts.
 
     These files are pipe-delimited with a header row and a trailing
     "File Creation Time: ..." footer row, which is dropped.
