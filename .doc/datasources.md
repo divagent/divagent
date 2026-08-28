@@ -72,6 +72,23 @@ Concept wrapper keys: `cik`, `entityName`, `taxonomy`, `tag`, `label`, `descript
 - Coverage varies per company; share classes appear as multiple entries → sum them.
 - One request per CIK (~7,600) at SEC's ~10 req/sec courtesy limit ≈ ~15 min full sweep.
 
+## 2b. Market-cap enrich runbook (implemented)
+
+`edgar` carries market-cap columns filled by a manual pass (~twice a year), Path B:
+
+1. `POST /api/v1/edgar/refresh` — rebuild the tick spine.
+2. `POST /api/v1/edgar/enrich` — needs `POLYGON_API_KEY`. Fetches:
+   - **shares** — EDGAR XBRL `dei:EntityCommonStockSharesOutstanding`, one call per
+     *unique CIK* (throttled to ~6 concurrent for SEC's ~10 req/s limit), latest
+     period-end wins → `shares_outstanding`, `shares_as_of`.
+   - **price** — Polygon grouped-daily (`/v2/aggs/grouped/.../{date}`), ONE call for
+     the whole US market's previous close; walks back up to 5 days for weekends/
+     holidays → `close_price`, `close_date`. SEC `BRK-B` ↔ Polygon `BRK.B`.
+   - `market_cap = shares_outstanding * close_price` (whole USD), `enriched_at`.
+   Enrich is a snapshot (overwrites those columns; spine columns untouched).
+
+Next step (deferred): filter `market_cap > 2e9` → copy to a separate table.
+
 ## 3. Market cap options
 
 - **Path A — vendor market cap (one source, ready-made):** Finnhub `/stock/profile2`,

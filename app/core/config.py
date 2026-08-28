@@ -16,6 +16,10 @@ class Settings(BaseSettings):
 
     GEMINI_API_KEY: str | None = None
 
+    # Polygon.io API key — used to fetch the previous trading day's close for
+    # the whole US stock universe in one grouped-daily call (market cap enrich).
+    POLYGON_API_KEY: str | None = None
+
     # App database URL used at runtime (admin: needs DDL via migrations + writes).
     @property
     def database_url(self) -> str:

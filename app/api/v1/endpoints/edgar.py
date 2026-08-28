@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.schemas.edgar import EdgarRefreshResult
-from app.services.edgar_loader import load_edgar
+from app.schemas.edgar import EdgarEnrichResult, EdgarRefreshResult
+from app.services.edgar_loader import enrich_edgar, load_edgar
 
 router = APIRouter(prefix="/edgar", tags=["edgar"])
 
@@ -18,4 +18,20 @@ async def refresh_edgar(session: AsyncSession = Depends(get_session)):
         nasdaq_rows=counts["Nasdaq"],
         nyse_rows=counts["NYSE"],
         total_rows=counts["Nasdaq"] + counts["NYSE"],
+    )
+
+
+@router.post("/enrich", response_model=EdgarEnrichResult)
+async def enrich_edgar_endpoint(session: AsyncSession = Depends(get_session)):
+    """Enrich the `edgar` table with market cap: shares outstanding from EDGAR
+    XBRL (per CIK) × the previous trading day's close from Polygon (per ticker).
+
+    Manual, run ~twice a year after /edgar/refresh. Requires POLYGON_API_KEY.
+    """
+    counts = await enrich_edgar(session)
+    return EdgarEnrichResult(
+        total_rows=counts["total"],
+        with_shares=counts["with_shares"],
+        with_price=counts["with_price"],
+        with_market_cap=counts["with_mktcap"],
     )
