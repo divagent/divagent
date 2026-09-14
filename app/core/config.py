@@ -16,6 +16,14 @@ class Settings(BaseSettings):
 
     GEMINI_API_KEY: str | None = None
 
+    # Model the analyze agent runs on (M2: a single model; M3 makes this a ring).
+    AGENT_GEMINI_MODEL: str = "gemini-3.6-flash"
+
+    # divmcp — the MCP server that hosts the agent's tools (dividend_tracker,
+    # web_search, fetch_url). The agent DISCOVERS tools here; it never imports them.
+    # Local dev points at a locally-run divmcp; prod points at the hosted URL.
+    DIVMCP_URL: str = "http://127.0.0.1:8000/mcp"
+
     # Polygon.io API key — used to fetch the previous trading day's close for
     # the whole US stock universe in one grouped-daily call (market cap enrich).
     POLYGON_API_KEY: str | None = None
