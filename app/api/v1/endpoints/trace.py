@@ -5,7 +5,7 @@ source-tagged NDJSON trace (you / fastapi / agent / mcp) of every step. divagent
 agents-only and not browser-facing — this is called by divcore, which re-streams it
 to the frontend's secret trace page.
 
-Gated by the `X-Internal-Key` header (shared with divcore as INTERNAL_SERVICE_KEY).
+Gated by the shared `X-Trace-Secret` header (TRACE_SECRET, forwarded by divcore).
 A miss returns 404 so the endpoint's existence isn't confirmed to a prober.
 """
 
@@ -25,10 +25,10 @@ router = APIRouter(prefix="/trace", tags=["trace"])
 @router.post("/analyze")
 async def trace_analyze(
     q: str = Query(..., description="Ticker or question, e.g. 'CNQ.TO'"),
-    x_internal_key: str | None = Header(default=None),
+    x_trace_secret: str | None = Header(default=None),
 ) -> StreamingResponse:
-    key = settings.INTERNAL_SERVICE_KEY
-    if not key or x_internal_key != key:
+    secret = settings.TRACE_SECRET
+    if not secret or x_trace_secret != secret:
         raise HTTPException(status_code=404)
 
     async def body():

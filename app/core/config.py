@@ -28,10 +28,11 @@ class Settings(BaseSettings):
     # the whole US stock universe in one grouped-daily call (market cap enrich).
     POLYGON_API_KEY: str | None = None
 
-    # Internal service key. divagent is agents-only and not browser-facing — only
-    # divcore (the fastapi backend) calls it, presenting this as the `X-Internal-Key`
-    # header on the trace endpoint. A miss 404s; unset disables the endpoint.
-    INTERNAL_SERVICE_KEY: str | None = None
+    # Shared trace secret. divagent is agents-only and not browser-facing — only
+    # divcore calls the trace endpoint, forwarding the same `X-Trace-Secret` the
+    # frontend sent. Same TRACE_SECRET value across frontend build / divcore /
+    # divagent. A miss 404s; unset disables the endpoint.
+    TRACE_SECRET: str | None = None
 
     # App database URL used at runtime (admin: needs DDL via migrations + writes).
     @property
