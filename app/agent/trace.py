@@ -37,28 +37,30 @@ async def stream_analyze(question: str) -> AsyncIterator[dict[str, Any]]:
     yield _ev("you", "prompt", question)
     yield _ev("fastapi", "received", "divagent received the analyze request")
 
-    mcp_client = _build_mcp_client()
-    # The MCP session must stay open for discovery AND the whole agent run.
-    with mcp_client:
-        tools = mcp_client.list_tools_sync()
-        names = [t.tool_name for t in tools]
-        yield _ev("mcp", "tools_discovered", f"discovered {len(names)} tool(s) on divmcp", names)
+    # Connecting to divmcp and discovering tools can fail (wrong DIVMCP_URL, divmcp
+    # down, transport error). Keep it INSIDE a try/except: an observability console
+    # must SHOW that failure as a trace line, never just drop the stream mid-flight.
+    try:
+        mcp_client = _build_mcp_client()
+        # The MCP session must stay open for discovery AND the whole agent run.
+        with mcp_client:
+            tools = mcp_client.list_tools_sync()
+            names = [t.tool_name for t in tools]
+            yield _ev("mcp", "tools_discovered", f"discovered {len(names)} tool(s) on divmcp", names)
 
-        agent = Agent(model=_build_model(), system_prompt=SYSTEM_PROMPT, tools=tools)
-        yield _ev("fastapi", "agent_start", "running the Strands agent loop")
+            agent = Agent(model=_build_model(), system_prompt=SYSTEM_PROMPT, tools=tools)
+            yield _ev("fastapi", "agent_start", "running the Strands agent loop")
 
-        announced: set[str] = set()
-        answer_parts: list[str] = []
-        try:
+            announced: set[str] = set()
+            answer_parts: list[str] = []
             async for event in agent.stream_async(question):
                 for out in _translate(event, announced, answer_parts):
                     yield out
-        except Exception as exc:  # ring spent / transport error — surface, never hang
-            yield _ev("fastapi", "error", f"{type(exc).__name__}: {exc}")
-            return
 
-        yield _ev("agent", "final", "".join(answer_parts).strip())
-        yield _ev("fastapi", "done", "stream complete")
+            yield _ev("agent", "final", "".join(answer_parts).strip())
+            yield _ev("fastapi", "done", "stream complete")
+    except Exception as exc:  # mcp connect/discovery or agent run — surface, never hang
+        yield _ev("fastapi", "error", f"{type(exc).__name__}: {exc}")
 
 
 def _translate(event: dict[str, Any], announced: set[str], answer_parts: list[str]) -> list[dict[str, Any]]:
