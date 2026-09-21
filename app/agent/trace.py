@@ -60,12 +60,35 @@ async def stream_analyze(question: str) -> AsyncIterator[dict[str, Any]]:
             yield _ev("agent", "final", "".join(answer_parts).strip())
             yield _ev("fastapi", "done", "stream complete")
     except Exception as exc:  # mcp connect/discovery or agent run — surface, never hang
-        yield _ev("fastapi", "error", f"{type(exc).__name__}: {exc}")
+        # Strands buries the provider error: it wraps unknown errors in
+        # EventLoopException(original_exception) and chains re-raises with
+        # `raise ... from`. Walk to the real cause so we show google-genai's actual
+        # ClientError/ServerError (with status/code) instead of the wrapper.
+        import traceback
+
+        real = getattr(exc, "original_exception", None) or exc.__cause__ or exc
+        detail = f"{type(real).__name__}: {real}"
+        for attr in ("status", "code"):  # google.genai.errors.APIError carries these
+            val = getattr(real, attr, None)
+            if val is not None:
+                detail += f" [{attr}={val}]"
+        yield _ev("fastapi", "error", detail, traceback.format_exc())
 
 
 def _translate(event: dict[str, Any], announced: set[str], answer_parts: list[str]) -> list[dict[str, Any]]:
     """Map one raw Strands stream event to zero or more source-tagged events."""
     outs: list[dict[str, Any]] = []
+
+    # Stop reason. An abnormal stop (content filter, recitation, max tokens) is WHY
+    # the model came back empty — Strands raises no exception for it, so if we don't
+    # surface it here the empty answer looks like a silent mystery downstream.
+    stop = event.get("stopReason")
+    if not stop:
+        raw = event.get("event")
+        if isinstance(raw, dict):
+            stop = (raw.get("messageStop") or {}).get("stopReason")
+    if stop and stop not in ("end_turn", "tool_use"):
+        outs.append(_ev("agent", "stop_reason", f"model stopped: {stop}", stop))
 
     # Model text delta.
     data = event.get("data")
